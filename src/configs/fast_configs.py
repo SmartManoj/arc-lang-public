@@ -1,6 +1,7 @@
 from src.configs.models import Model, RunConfig, Step, StepRevision, StepRevisionPool
 
-model = Model.grok_3_mini_fast
+# model = Model.grok_3_mini_fast
+model = Model.gpt_4_1_mini
 
 mini_config_big = RunConfig(
     final_follow_model=model,

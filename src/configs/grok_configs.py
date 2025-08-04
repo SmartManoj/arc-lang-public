@@ -3,7 +3,7 @@ from src.configs.models import Model, RunConfig, Step, StepRevision, StepRevisio
 grok_config_prod = RunConfig(
     final_follow_model=Model.grok_4,
     final_follow_times=5,
-    max_concurrent_tasks=20,
+    max_concurrent_tasks=30,
     steps=[
         Step(
             instruction_model=Model.grok_4,
@@ -25,7 +25,7 @@ grok_config_prod = RunConfig(
             top_scores_used=5,
             instruction_model=Model.grok_4,
             follow_model=Model.grok_4,
-            times_per_top_score=1,
+            times_per_top_score=2,
             timeout_secs=300,
             include_base64=False,
             use_diffs=True,

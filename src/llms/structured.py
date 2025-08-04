@@ -45,7 +45,10 @@ gemini_client = genai.Client(
 
 # Semaphore to limit concurrent API calls to 100
 API_SEMAPHORE = MonitoredSemaphore(
-    int(os.environ["MAX_CONCURRENCY"]), name="API_SEMAPHORE"
+    int(os.environ["MAX_CONCURRENCY"]),
+    name="API_SEMAPHORE",
+    update_url="https://jj-production.up.railway.app/api_semaphore/concurrency_limit",
+    update_interval=5,
 )
 
 
@@ -305,9 +308,9 @@ async def _get_next_structure_xai(
                     "name": [{}],
                     "retryPolicy": {
                         "maxAttempts": 5,
-                        "initialBackoff": "1s",
-                        "maxBackoff": "60s",
-                        "backoffMultiplier": 2.0,
+                        "initialBackoff": "2s",
+                        "maxBackoff": "120s",
+                        "backoffMultiplier": 3.0,
                         "retryableStatusCodes": [
                             "UNAVAILABLE",
                             "RESOURCE_EXHAUSTED",

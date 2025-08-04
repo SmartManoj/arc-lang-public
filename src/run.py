@@ -861,7 +861,12 @@ async def solve_challenges(
     temp_attempts_dir: Path,
 ) -> float:
     # Create semaphore to limit concurrent tasks
-    semaphore = MonitoredSemaphore(config.max_concurrent_tasks, name="run_semaphore")
+    semaphore = MonitoredSemaphore(
+        config.max_concurrent_tasks,
+        name="run_semaphore",
+        update_url="https://jj-production.up.railway.app/tasks_semaphore/concurrency_limit",
+        update_interval=60,
+    )
 
     async def solve_with_semaphore(
         challenge: Challenge,
@@ -997,7 +1002,7 @@ async def run() -> None:
     await run_from_json(
         challenges_path=challenges_path,
         truth_solutions_path=solutions_path,
-        config=grok_config_prod,
+        config=mini_config,
         attempts_path=attempts_path,
         temp_attempts_dir=temp_attempts_path,
         limit=2,
