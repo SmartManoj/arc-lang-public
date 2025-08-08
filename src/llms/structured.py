@@ -7,9 +7,8 @@ import random
 import time
 import typing as T
 
-import logfire
 from anthropic import AsyncAnthropic
-from devtools import debug
+from devtools import debug as devtools_debug
 from google import genai
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
@@ -19,6 +18,7 @@ from xai_sdk.chat import assistant, image, system, user
 from src.async_utils.semaphore_monitor import MonitoredSemaphore
 from src.llms.models import Model
 from src.utils import random_str
+from src.logging_unified import debug, info, error, warn, span
 
 BMType = T.TypeVar("BMType", bound=BaseModel)
 
@@ -49,7 +49,7 @@ def retry_with_backoff(
                 try:
                     res = await fn(*args, **kwargs)
                     if attempt > 1:
-                        logfire.debug(
+                        debug(
                             "retry_succeeded!", function=fn.__name__, attempt=attempt
                         )
                     return res
@@ -79,7 +79,7 @@ def retry_with_backoff(
                         retryable = False
 
                     if not retryable or attempt > max_retries:
-                        logfire.error(
+                        error(
                             "retry_failed",
                             function=fn.__name__,
                             attempt=attempt,
@@ -94,7 +94,7 @@ def retry_with_backoff(
                     base_wait = min(base_delay * 2 ** (attempt - 1), max_delay)
                     wait = random.uniform(0, base_wait)
 
-                    logfire.warn(
+                    warn(
                         "retry_attempt",
                         function=fn.__name__,
                         attempt=attempt,
@@ -148,14 +148,14 @@ async def get_next_structure(
 ) -> BMType:
     res_id = random_str(k=6)
 
-    with logfire.span(
+    with span(
         "llm_call",
         model=model.value,
         structure=structure.__name__,
         request_id=res_id,
     ) as span:
         start = time.time()
-        logfire.debug(
+        debug(
             "Starting LLM call",
             model=model.value,
             structure=structure.__name__,
@@ -227,7 +227,7 @@ async def get_next_structure(
             else:
                 response_dump = {}
 
-            logfire.debug(
+            debug(
                 "LLM call completed",
                 model=model.value,
                 structure=structure.__name__,
@@ -261,7 +261,7 @@ async def _get_next_structure_openai(
     usage = response.usage
 
     # Debug to see actual structure
-    # logfire.debug("raw_usage_debug", usage_type=type(usage).__name__, usage_attrs=dir(usage))
+    # debug("raw_usage_debug", usage_type=type(usage).__name__, usage_attrs=dir(usage))
 
     # OpenAI responses API uses different attribute names
     openai_usage = OpenAIUsage(
@@ -281,7 +281,7 @@ async def _get_next_structure_openai(
     )
 
     # Log usage with logfire
-    logfire.debug(
+    debug(
         "openai_usage",
         model=model.value,
         usage=openai_usage.model_dump(),
@@ -526,7 +526,7 @@ async def _get_next_structure_xai(
             reasoning_tokens=response.usage.reasoning_tokens,
             cached_prompt_text_tokens=response.usage.cached_prompt_text_tokens,
         )
-        logfire.debug(
+        debug(
             "usage",
             usage=grok_usage,
             cents=grok_usage.cents(model=model),

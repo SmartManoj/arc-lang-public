@@ -1,8 +1,8 @@
-import logfire
 from pydantic import BaseModel, Field
 
 # Import logging_config first to apply patches
 import src.logging_config  # noqa: F401
+from src.logging_unified import error
 from src.llms.messages import (
     get_next_message_anthropic,
     get_next_message_deepseek,
@@ -152,7 +152,7 @@ def contents_from_grid(grid: GRID, grid_label: str, include_base64: bool) -> lis
             ValueError,
             TypeError,
         ) as e:
-            logfire.error("Error generating base64 image", error=str(e))
+            error("Error generating base64 image", error=str(e))
             pass
 
     return contents
