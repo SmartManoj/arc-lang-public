@@ -1,7 +1,7 @@
 from src.configs.models import Model, RunConfig, Step, StepRevision, StepRevisionPool
 
 instruction_model = Model.sglang_gpt_oss_120b
-grid_model = Model.gpt_4_1
+grid_model = Model.gpt_5
 
 oss_120b_prod = RunConfig(
     final_follow_model=grid_model,

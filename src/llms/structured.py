@@ -314,7 +314,6 @@ async def _get_next_structure_lepton(
     model: Model,
     messages: list,
 ) -> BMType:
-    print("HI")
     reasoning = {"effort": "high"}
     print("modelname", model.value)
     if "vllm" in model.value:
@@ -339,7 +338,7 @@ async def _get_next_structure_lepton(
                 input=messages,
                 max_output_tokens=128_000,
             )
-            print(response.output_text)
+            # print(response.output_text)
             return InstructionsResponse(instructions=response.output_text)
         response = await client.responses.parse(
             model=model.value.split("::")[0],
