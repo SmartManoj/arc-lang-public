@@ -116,6 +116,18 @@ def retry_with_backoff(
 openai_client = AsyncOpenAI(
     api_key=os.environ["OPENAI_API_KEY"], timeout=3600, max_retries=2
 )
+vllm_client = AsyncOpenAI(
+    base_url=os.environ["VLLM_ENDPOINT"],
+    api_key=os.environ["VLLM_API_KEY"],
+    timeout=3600,
+    max_retries=2,
+)
+sglang_client = AsyncOpenAI(
+    base_url=os.environ["SGLANG_ENDPOINT"],
+    api_key=os.environ["SGLANG_API_KEY"],
+    timeout=3600,
+    max_retries=2,
+)
 anthropic_client = AsyncAnthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY"), timeout=2500, max_retries=2
 )
@@ -163,7 +175,11 @@ async def get_next_structure(
         )
 
         async with API_SEMAPHORE:
-            if model in [
+            if model in [Model.vllm_gpt_oss_120b, Model.sglang_gpt_oss_120b]:
+                res = await _get_next_structure_lepton(
+                    structure=structure, model=model, messages=messages
+                )
+            elif model in [
                 Model.o4_mini,
                 Model.o3,
                 Model.gpt_4_1,
@@ -290,6 +306,86 @@ async def _get_next_structure_openai(
     if model in [Model.o3_pro]:
         debug(response)
     output: BMType = response.output_parsed
+    return output
+
+
+async def _get_next_structure_lepton(
+    structure: type[BMType],  # type[T]
+    model: Model,
+    messages: list,
+) -> BMType:
+    print("HI")
+    reasoning = {"effort": "high"}
+    print("modelname", model.value)
+    if "vllm" in model.value:
+        client = vllm_client
+    elif "sglang" in model.value:
+        client = sglang_client
+    else:
+        print("HI errr")
+        raise Exception("invalid model")
+    try:
+        from src.main import InstructionsResponse
+
+        if "sglang" in model.value and structure is InstructionsResponse:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Just return the instructions and nothing else!",
+                }
+            )
+            response = await client.responses.create(
+                model=model.value.split("::")[0],
+                input=messages,
+                max_output_tokens=128_000,
+            )
+            print(response.output_text)
+            return InstructionsResponse(instructions=response.output_text)
+        response = await client.responses.parse(
+            model=model.value.split("::")[0],
+            input=messages,
+            text_format=structure,
+            max_output_tokens=128_000,
+            reasoning=reasoning,
+        )
+    except Exception as e:
+        print(structure.__name__)
+        debug(e)
+        raise e
+    # debug(response)
+
+    # Build usage object
+    usage = response.usage
+
+    # OpenAI responses API uses different attribute names
+    openai_usage = OpenAIUsage(
+        completion_tokens=getattr(usage, "output_tokens", 0),
+        prompt_tokens=getattr(usage, "input_tokens", 0),
+        total_tokens=getattr(usage, "total_tokens", 0),
+        reasoning_tokens=getattr(
+            getattr(usage, "output_tokens_details", None), "reasoning_tokens", 0
+        )
+        if hasattr(usage, "output_tokens_details") and usage.output_tokens_details
+        else 0,
+        cached_prompt_tokens=getattr(
+            getattr(usage, "input_tokens_details", None), "cached_tokens", 0
+        )
+        if hasattr(usage, "input_tokens_details") and usage.input_tokens_details
+        else 0,
+    )
+
+    # Log usage with logfire
+    log.debug(
+        "lepton_usage",
+        model=model.value,
+        usage=openai_usage.model_dump(),
+        cents=openai_usage.cents(model=model),
+        finish_reason=getattr(response, "finish_reason", None),
+        reasoning_content=getattr(response, "reasoning_content", None),
+    )
+
+    output: BMType = response.output_parsed
+    # debug(output)
     return output
 
 

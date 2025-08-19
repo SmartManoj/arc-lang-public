@@ -56,6 +56,9 @@ class Model(str, Enum):
     cerebras_gpt_oss_120b = "gpt-oss-120b"
     groq_gpt_oss_120b = "openai/gpt-oss-120b"
 
+    vllm_gpt_oss_120b = "openai/gpt-oss-120b::vllm"
+    sglang_gpt_oss_120b = "lmsys/gpt-oss-120b-bf16::sglang"
+
 
 class ModelConfig(BaseModel):
     max_tokens: int
