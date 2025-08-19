@@ -1027,9 +1027,10 @@ async def run() -> None:
         config=oss_120b_prod,
         attempts_path=attempts_path,
         temp_attempts_dir=temp_attempts_path,
-        limit=5,
-        offset=0,
+        limit=10,
+        offset=15,
         # task_ids={"b0039139", "20270e3b"},
+        # task_ids={"00d62c1b", "045e512c"},
     )
 
     if solutions_path:

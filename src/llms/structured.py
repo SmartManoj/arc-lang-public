@@ -315,7 +315,7 @@ async def _get_next_structure_lepton(
     messages: list,
 ) -> BMType:
     reasoning = {"effort": "high"}
-    print("modelname", model.value)
+    # print("modelname", model.value)
     if "vllm" in model.value:
         client = vllm_client
     elif "sglang" in model.value:
@@ -324,7 +324,7 @@ async def _get_next_structure_lepton(
         print("HI errr")
         raise Exception("invalid model")
     try:
-        from src.main import InstructionsResponse
+        from src.main import InstructionsResponse, GridResponse
 
         if "sglang" in model.value and structure is InstructionsResponse:
             messages.append(
@@ -340,6 +340,24 @@ async def _get_next_structure_lepton(
             )
             # print(response.output_text)
             return InstructionsResponse(instructions=response.output_text)
+        if "sglang" in model.value and structure is GridResponse:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Just return the grid as a json list[int[int]] and nothing else!",
+                }
+            )
+            response = await client.responses.create(
+                model=model.value.split("::")[0],
+                input=messages,
+                max_output_tokens=128_000,
+            )
+            # print("GRID OUTPUT TEXT")
+            # print(response.output_text)
+            loaded_grid = json.loads(response.output_text)
+            # print("loaded grid")
+            # print(loaded_grid)
+            return GridResponse(grid=loaded_grid)
         response = await client.responses.parse(
             model=model.value.split("::")[0],
             input=messages,
