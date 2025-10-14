@@ -114,7 +114,7 @@ def retry_with_backoff(
 
 
 openai_client = AsyncOpenAI(
-    api_key=os.environ["OPENAI_API_KEY"], timeout=3600, max_retries=2
+    api_key=os.environ["OPENAI_API_KEY"], timeout=3_600, max_retries=2
 )
 anthropic_client = AsyncAnthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY"), timeout=3_010, max_retries=2
@@ -163,7 +163,11 @@ async def get_next_structure(
         )
 
         async with API_SEMAPHORE:
-            if model in [
+            if model == Model.gpt_5_pro:
+                res = await _get_next_structure_openai_background(
+                    structure=structure, model=model, messages=messages
+                )
+            elif model in [
                 Model.o4_mini,
                 Model.o3,
                 Model.gpt_4_1,
@@ -289,6 +293,99 @@ async def _get_next_structure_openai(
 
     if model in [Model.o3_pro]:
         debug(response)
+    output: BMType = response.output_parsed
+    return output
+
+
+async def _get_next_structure_openai_background(
+    structure: type[BMType],
+    model: Model,
+    messages: list,
+) -> BMType:
+    """Background mode for GPT-5 Pro with async polling for long-running requests."""
+    response = await openai_client.responses.parse(
+        model=model.value,
+        input=messages,
+        text_format=structure,
+        max_output_tokens=256_000,
+        reasoning={"effort": "high"},
+        background=True,
+    )
+
+    response_id: str = response.id
+    log.debug(
+        "background_request_queued",
+        model=model.value,
+        response_id=response_id,
+        status=response.status,
+    )
+
+    poll_interval: float = 2.0
+    max_poll_interval: float = 30.0
+    elapsed: float = 0.0
+
+    while True:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+        response = await openai_client.responses.retrieve(response_id)
+        status: str = response.status
+
+        log.debug(
+            "background_polling",
+            model=model.value,
+            response_id=response_id,
+            status=status,
+            elapsed_seconds=elapsed,
+        )
+
+        if status in ["completed", "failed", "cancelled"]:
+            break
+
+        poll_interval = min(poll_interval * 1.5, max_poll_interval)
+
+    if status != "completed":
+        raise Exception(f"Background request {status}: {response_id}")
+
+    usage = response.usage
+    openai_usage = OpenAIUsage(
+        completion_tokens=getattr(usage, "output_tokens", 0),
+        prompt_tokens=getattr(usage, "input_tokens", 0),
+        total_tokens=getattr(usage, "total_tokens", 0),
+        reasoning_tokens=getattr(
+            getattr(usage, "output_tokens_details", None), "reasoning_tokens", 0
+        )
+        if hasattr(usage, "output_tokens_details") and usage.output_tokens_details
+        else 0,
+        cached_prompt_tokens=getattr(
+            getattr(usage, "input_tokens_details", None), "cached_tokens", 0
+        )
+        if hasattr(usage, "input_tokens_details") and usage.input_tokens_details
+        else 0,
+    )
+
+    reasoning_summary: str | None = getattr(response, "reasoning_content", None)
+    if reasoning_summary:
+        log.debug(
+            "reasoning_trace_summary",
+            model=model.value,
+            response_id=response_id,
+            reasoning_summary=reasoning_summary[:500] + "..."
+            if len(reasoning_summary) > 500
+            else reasoning_summary,
+            reasoning_length=len(reasoning_summary),
+        )
+
+    log.debug(
+        "openai_background_usage",
+        model=model.value,
+        response_id=response_id,
+        usage=openai_usage.model_dump(),
+        cents=openai_usage.cents(model=model),
+        finish_reason=getattr(response, "finish_reason", None),
+        total_elapsed_seconds=elapsed,
+    )
+
     output: BMType = response.output_parsed
     return output
 
@@ -428,14 +525,19 @@ MODEL_PRICING_D: dict[Model, ModelPricing] = {
         completion_tokens=600 / 1_000_000,  # $0.60 per 1M tokens
     ),
     Model.gpt_5: ModelPricing(
-        prompt_tokens=125 / 1_000_000,  # $10 per 1M tokens (estimate)
-        reasoning_tokens=1_000 / 1_000_000,  # $50 per 1M tokens (estimate)
-        completion_tokens=1_000 / 1_000_000,  # $30 per 1M tokens (estimate)
+        prompt_tokens=125 / 1_000_000,  # $1.25 per 1M tokens
+        reasoning_tokens=1_000 / 1_000_000,  # $10 per 1M tokens
+        completion_tokens=1_000 / 1_000_000,  # $10 per 1M tokens
+    ),
+    Model.gpt_5_pro: ModelPricing(
+        prompt_tokens=2_000 / 1_000_000,  # $20 per 1M tokens (estimate)
+        reasoning_tokens=10_000 / 1_000_000,  # $100 per 1M tokens (estimate)
+        completion_tokens=10_000 / 1_000_000,  # $100 per 1M tokens (estimate)
     ),
     Model.sonnet_4_5: ModelPricing(
-        prompt_tokens=3_000 / 1_000_000,  # $10 per 1M tokens (estimate)
-        reasoning_tokens=15_000 / 1_000_000,  # $50 per 1M tokens (estimate)
-        completion_tokens=15_000 / 1_000_000,  # $30 per 1M tokens (estimate)
+        prompt_tokens=3_000 / 1_000_000,  # $3 per 1M tokens
+        reasoning_tokens=15_000 / 1_000_000,  # $15 per 1M tokens
+        completion_tokens=15_000 / 1_000_000,  # $15 per 1M tokens
     ),
 }
 

@@ -987,8 +987,8 @@ async def run_from_json(
 async def run() -> None:
     # Generate and print run ID at the start
 
-    year = "2025"
-    train_or_eval = "evaluation"
+    year = "2024"
+    train_or_eval = "training"
     root_dir = Path(__file__).parent.parent
 
     challenges_path = (
@@ -1017,6 +1017,7 @@ async def run() -> None:
 
     from src.configs.ant_configs import sonnet_4_5_config_prod
     from src.configs.fast_configs import mini_config, mini_for_testing
+    from src.configs.gpt5pro_configs import gpt5pro_config_prod
     from src.configs.gpt_configs import gpt_config_prod
     from src.configs.grok_configs import grok_config_prod
     from src.configs.oss_configs import oss_config
@@ -1024,7 +1025,7 @@ async def run() -> None:
     await run_from_json(
         challenges_path=challenges_path,
         truth_solutions_path=solutions_path,
-        config=grok_config_prod,
+        config=sonnet_4_5_config_prod,
         attempts_path=attempts_path,
         temp_attempts_dir=temp_attempts_path,
         limit=1,
