@@ -114,7 +114,9 @@ def retry_with_backoff(
 
 
 openai_client = AsyncOpenAI(
-    api_key=os.environ["OPENAI_API_KEY"], timeout=3600, max_retries=2
+    api_key=os.environ["LLM_API_KEY"], 
+    base_url=os.environ["LLM_BASE_URL"],
+    timeout=3600, max_retries=2
 )
 anthropic_client = AsyncAnthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY"), timeout=3_010, max_retries=2
@@ -249,8 +251,12 @@ async def _get_next_structure_openai(
         reasoning = {"effort": "high"}
     else:
         reasoning = None
+    
+    # Allow overriding model name via environment variable
+    model_name = os.environ.get("LLM_MODEL", model.value)
+    
     response = await openai_client.responses.parse(
-        model=model.value,
+        model=model_name,
         input=messages,
         text_format=structure,
         max_output_tokens=128_000,
